@@ -67,25 +67,6 @@ It uses Apache Spark for large-scale data processing, Google Cloud Storage (GCS)
 
    Replace `/path/to/your/service-account-key.json` with the actual path to your service account key.
 
-## Deployment to Kubernetes (EKS or GKE)
-
-This project can be deployed to Kubernetes environments such as Amazon EKS or Google Kubernetes Engine (GKE). 
-
-1. Ensure you have `kubectl` configured to interact with your cluster.
-
-2. Create a Kubernetes secret for your Google Cloud service account key:
-   ```
-   kubectl create secret generic gcp-sa-key --from-file=service-account-key.json=/path/to/your/service-account-key.json
-   ```
-
-3. Apply the Kubernetes deployment and service configurations:
-   ```
-   kubectl apply -f k8s/deployment.yaml
-   kubectl apply -f k8s/service.yaml
-   ```
-
-Note: You'll need to create appropriate `deployment.yaml` and `service.yaml` files tailored to your specific Kubernetes setup and requirements.
-
 ## Usage
 
 For local development with Poetry:
