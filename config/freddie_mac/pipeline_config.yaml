@@ -1,0 +1,15 @@
+project_id: "mbs-analytics-428015"
+dataset_id: "mortgage_dataset"
+table_id: "performance"
+temp_bucket: "mbs-analytics"
+data_sources:
+  - name: "freddie_mac"
+    schema: "config/freddie_mac/schema.json"
+    schema_mapper: "config/freddie_mac/schema_mapper.json"
+    input_pattern: "gs://your-input-bucket/freddie_mac_data/historical_data_time_{year}Q{quarter}.txt"
+    output_pattern: "gs://your-output-bucket/freddie_mac_processed/year={year}/quarter={quarter}"
+    file_format: "csv"
+    separator: "|"
+    date_range:
+      start: 1999
+      end: 2023

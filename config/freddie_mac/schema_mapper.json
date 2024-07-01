@@ -1,0 +1,14 @@
+{
+  "monthly_reporting_period": "to_date(monthly_reporting_period, 'yyyyMM')",
+  "defect_settlement_date": "to_date(defect_settlement_date, 'yyyyMM')",
+  "zero_balance_effective_date": "to_date(zero_balance_effective_date, 'yyyyMM')",
+  "ddlpi": "to_date(ddlpi, 'yyyyMM')",
+  "net_sale_proceeds": "CASE WHEN net_sale_proceeds = 'U' THEN NULL ELSE cast(net_sale_proceeds as double) END",
+  "delinquency_status": "cast(current_loan_delinquency_status as int)",
+  "is_delinquent": "delinquency_status > 0",
+  "is_prepaid": "zero_balance_code = '01'",
+  "is_defaulted": "zero_balance_code IN ('02', '03', '09')",
+  "processing_date": "current_timestamp()",
+  "reporting_year": "year(monthly_reporting_period)",
+  "reporting_month": "month(monthly_reporting_period)"
+}
