@@ -16,12 +16,21 @@ from tenacity import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DEFAULT_ATTEMPTS = 10
-TIMEOUT = 300
-
 
 class AsyncMortgageDataScraper:
+    DEFAULT_ATTEMPTS = 10
+    TIMEOUT = 300
+
     def __init__(self, username, password, data_source, gcs_bucket_name):
+        """
+        Initialize the scraper with necessary credentials and configurations.
+
+        Args:
+            username (str): Username for authentication.
+            password (str): Password for authentication.
+            data_source (str): Data source identifier.
+            gcs_bucket_name (str): Google Cloud Storage bucket name.
+        """
         self.username = username
         self.password = password
         self.data_source = data_source
@@ -31,29 +40,44 @@ class AsyncMortgageDataScraper:
         self.bucket = self.storage_client.bucket(self.gcs_bucket_name)
 
     async def login(self):
-        """Modify as needed in partner specific class"""
+        """Authenticate to the data source. Override in subclasses."""
         pass
 
     async def get_download_links(self):
-        """Modify as needed in partner specific class"""
+        """Retrieve download links. Override in subclasses."""
         pass
 
     async def extract_nested_zip(self, zip_content):
+        """
+        Extract nested zip files asynchronously.
+
+        Args:
+            zip_content (bytes): Content of the zip file.
+
+        Yields:
+            tuple: (filename, file content)
+        """
         with zipfile.ZipFile(io.BytesIO(zip_content)) as zf:
             for filename in zf.namelist():
                 if filename.endswith(".zip"):
                     with zf.open(filename) as nested_zip:
                         nested_content = nested_zip.read()
-                        async for (
-                            nested_filename,
-                            nested_file_content,
-                        ) in self.extract_nested_zip(nested_content):
+                        async for nested_filename, nested_file_content in self.extract_nested_zip(nested_content):
                             yield nested_filename, nested_file_content
                 else:
                     with zf.open(filename) as file:
                         yield filename, file.read()
 
     def file_exists_in_gcs(self, gcs_path):
+        """
+        Check if a file exists in Google Cloud Storage.
+
+        Args:
+            gcs_path (str): Path to the file in GCS.
+
+        Returns:
+            bool: True if the file exists, False otherwise.
+        """
         blob = self.bucket.blob(gcs_path)
         return blob.exists()
 
@@ -65,7 +89,19 @@ class AsyncMortgageDataScraper:
         ),
     )
     async def download_file(self, link):
-        timeout = ClientTimeout(total=TIMEOUT)
+        """
+        Download a file from the given link.
+
+        Args:
+            link (str): URL of the file to download.
+
+        Returns:
+            bytes: Content of the downloaded file.
+
+        Raises:
+            Exception: If the download fails.
+        """
+        timeout = ClientTimeout(total=self.TIMEOUT)
         async with self.session.get(link, timeout=timeout) as response:
             if response.status == 200:
                 return await response.read()
@@ -75,6 +111,15 @@ class AsyncMortgageDataScraper:
                 )
 
     async def download_and_upload_to_gcs(self, link):
+        """
+        Download a file and upload its contents to Google Cloud Storage.
+
+        Args:
+            link (str): URL of the file to download.
+
+        Returns:
+            list: List of paths to the uploaded files in GCS.
+        """
         try:
             filename = link.split("/")[-1]
             gcs_path = f"{self.data_source}/raw/{filename}"
@@ -105,6 +150,12 @@ class AsyncMortgageDataScraper:
             return []
 
     async def scrape(self):
+        """
+        Perform the scraping process: login, get download links, and process each link.
+
+        Returns:
+            list: List of successfully uploaded file paths in GCS.
+        """
         async with aiohttp.ClientSession() as self.session:
             await self.login()
             links = await self.get_download_links()
@@ -125,16 +176,22 @@ class FreddieMacScraper(AsyncMortgageDataScraper):
     DOWNLOAD_URL = f"{BASE_URL}/Data/download.php"
 
     @retry(
-        stop=stop_after_attempt(DEFAULT_ATTEMPTS),
-        wait=wait_exponential(multiplier=1, min=4, max=TIMEOUT),
+        stop=stop_after_attempt(AsyncMortgageDataScraper.DEFAULT_ATTEMPTS),
+        wait=wait_exponential(multiplier=1, min=4, max=AsyncMortgageDataScraper.TIMEOUT),
         retry=retry_if_exception_type(
             (aiohttp.ClientPayloadError, aiohttp.ClientError, asyncio.TimeoutError)
         ),
     )
     async def login(self):
+        """
+        Login to Freddie Mac website.
+
+        Raises:
+            Exception: If login or accepting terms and conditions fails.
+        """
         payload = {"username": self.username, "password": self.password}
         async with self.session.post(self.AUTH_URL, data=payload) as response:
-            if response.status != 404:
+            if response.status != 200:
                 raise Exception("Login failed")
 
         payload2 = {
@@ -147,6 +204,12 @@ class FreddieMacScraper(AsyncMortgageDataScraper):
                 raise Exception("Accepting terms and conditions failed")
 
     async def get_download_links(self):
+        """
+        Retrieve download links from Freddie Mac website.
+
+        Returns:
+            list: List of URLs to download the data files.
+        """
         async with self.session.get(self.DOWNLOAD_URL) as response:
             text = await response.text()
             soup = BeautifulSoup(text, "html.parser")
